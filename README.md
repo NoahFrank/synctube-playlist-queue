@@ -21,5 +21,8 @@ queueYoutubePlaylist(YOUTUBE_API_KEY, YOUTUBE_PLAYLIST_URL);
 
 // Example usage
 queueYoutubePlaylist("fakeapikey123", "https://www.youtube.com/playlist?list=PLxkBRm_U8gJ8x-J9SR_-sSm2gcT8Gnmuh");
+queueYoutubePlaylist("fakeapikey123", "https://www.youtube.com/watch?v=-LX2kpeyp80&list=PLR4XuJ-iybKtlsbeZ89tx1kcItBTdSeUN&index=7");
 ```
 
+## Limitations
+- A SyncTube room can have a maximum of 100 videos in queue, so a Youtube playlist with over 100 videos is not supported.
