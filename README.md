@@ -16,6 +16,7 @@
 1. Navigate to your [sync-tube](https://sync-tube.de/) room or create a new one
 2. Open the browser's dev tools (F12) and go to the Console
 3. Copy-paste the contents of `queue-youtube-playlist.js` into your browser's Console
+    - Some browsers like *Firefox* require you to type something akin to "allow pasting" before you will be allowed to paste into the Console for security reasons. You are encouraged to read the code before pasting, it's only ~120 lines including comments!
 4. To queue a Youtube playlist's videos to the SyncTube room:
 ```js
 queueYoutubePlaylist(YOUTUBE_API_KEY, YOUTUBE_PLAYLIST_URL);
