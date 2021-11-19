@@ -1,4 +1,4 @@
-// Store a reference to each websocket in window.sockets that is actively sending messages
+// Store a reference to each websocket that is actively sending messages in window.sockets
 // Source: https://stackoverflow.com/questions/59915987/get-active-websockets-of-a-website-possible
 function setupWebsocketSendOverride() {
 	const originalSend = WebSocket.prototype.send;
@@ -76,7 +76,6 @@ async function sleepUntil(f, timeoutMs) {
         const startTime = new Date();
         let wait = setInterval(function() {
             if (f()) {  // Condition success case
-                // console.log("resolved after", new Date() - startTime, "ms");
                 clearInterval(wait);
                 resolve();
             } else if (new Date() - startTime > timeoutMs) { // Timeout fail case
