@@ -2,6 +2,11 @@ import WebSocket from "ws";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
+// CONSTANTS
+const QUEUE_LOOP_SLEEP_PERIOD = 200; // In milliseconds
+const VIDEO_QUEUE_CODE = 30;  // Msg type code for Synctube Websockets
+const SET_NAME_CODE = 12;
+
 const parseCookies = str =>
 	str.split(';')
 	.map(v => v.split('='))
@@ -92,10 +97,6 @@ async function getVideosFromYoutubePlaylist(apiKey, playlistId) {
 }
 
 async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
-	// Setup behavior constants
-	const QUEUE_LOOP_SLEEP_PERIOD = 200; // In milliseconds
-	const VIDEO_QUEUE_CODE = 30;  // Msg type code for Synctube Websockets
-
 	const parsedUrl = new URL(playlistUrl);
 	const urlParams = parsedUrl.searchParams;
 	// Youtube playlist id contained in "list" query param
@@ -130,12 +131,12 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 (async () => {
 	const cmdLineArgs = process.argv.slice(2);
 	if (cmdLineArgs.length != 2) {
-		console.warn("Error: Expected exactly two arguments, the synctube url/room ID and the Youtube Playlist url");
-		console.warn("Usage: node synctube-playlist-queue-v2-node.mjs <SYNCTUBE_URL> <YT_PLAYLIST_URL>");
+		console.error("Error: Expected exactly two arguments, the synctube url/room ID and the Youtube Playlist url");
+		console.error("Usage: node synctube-playlist-queue-v2-node.mjs <SYNCTUBE_URL> <YT_PLAYLIST_URL>");
 		return;
 	}
 	const synctubeRoom = cmdLineArgs[0];
-	const playlistUrl = cmdLineArgs[1];
+	const url = cmdLineArgs[1];
 	let roomId = synctubeRoom;
 	if (synctubeRoom.includes("http")) {
 		const url = new URL(synctubeRoom);
@@ -156,11 +157,18 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 
 	// For fun, set the bot's name in the room
 	const botName = "Billy Bot";
-	const SET_NAME_CODE = 12;
 	roomSocket.send(`[${SET_NAME_CODE},${JSON.stringify(botName)},${Date.now()}]`);
 
-	// MAX PLAYLIST SIZE IS 50
-	await queueYoutubePlaylist(roomSocket, process.env.YT_API_KEY, playlistUrl);
+	if (url.includes('youtube.com/watch')) {
+		const queueVideoMsg = `[${VIDEO_QUEUE_CODE},${JSON.stringify({ src: url })},${Date.now()}]`;
+        roomSocket.send(queueVideoMsg);
+		console.info(`Queued video: ${url}`)
+	} else if (url.includes('youtube.com/playlist')) {
+		// MAX PLAYLIST SIZE IS 50
+		await queueYoutubePlaylist(roomSocket, process.env.YT_API_KEY, url);
+	} else {
+		console.error(`Unsupported Youtube link => ${url}`)
+	}
 
 	roomSocket.close();
 })();
