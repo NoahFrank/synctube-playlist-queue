@@ -158,7 +158,7 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 
 	if (url.includes('youtube.com/watch')) {
 		const queueVideoMsg = `[${VIDEO_QUEUE_CODE},${JSON.stringify({ src: url })},${Date.now()}]`;
-        roomSocket.send(queueVideoMsg);
+		roomSocket.send(queueVideoMsg);
 		console.info(`Queued video: ${url}`)
 	} else if (url.includes('youtube.com/playlist')) {
 		// MAX PLAYLIST SIZE IS 50
