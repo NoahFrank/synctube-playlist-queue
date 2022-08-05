@@ -23,8 +23,17 @@ git clone https://github.com/NoahFrank/synctube-playlist-queue.git
 3. Create an `.env` file from the `.env.sample` file, replacing <YOUR_YOUTUBE_API_KEY> with the API Key acquired in the Prerequisites
 4. Run the script with `node` like so:
 ```bash
-node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> <YOUTUBE_PLAYLIST_URL>
+node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL>
+```
+
+## Clear Synctube Playlist
+*Ensure the Viewer group has 'Remove' permissions in the Synctube room*
+```bash
+node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> clear
 ```
 
 ## Limitations
 - When queueing videos from the websocket maximum is **50** videos.
+
+## Authors
+Noah Frank and Colin Thatcher (shoutout to Big Bird for the direct Websocket connection POC)

@@ -1,1 +1,6 @@
+# Sensitive ENV VAR file
 .env
+
+# IDEs
+.vscode
+.idea

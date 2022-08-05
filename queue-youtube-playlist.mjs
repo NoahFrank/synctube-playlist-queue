@@ -4,7 +4,9 @@ import dotenv from "dotenv";
 
 // CONSTANTS
 const QUEUE_LOOP_SLEEP_PERIOD = 200; // In milliseconds
-const VIDEO_QUEUE_CODE = 30;  // Msg type code for Synctube Websockets
+// Msg type codes for Synctube Websockets
+const VIDEO_QUEUE_CODE = 30;
+const REMOVE_VIDEO_CODE = 31;
 const SET_NAME_CODE = 12;
 
 const parseCookies = str =>
@@ -55,15 +57,7 @@ async function createWebsocket(roomId) {
 	// const userString = '{.".u.s.e.r.".:.{.".n.a.m.e.".:.".t.u.r.t.l.e. .t.h.e. .m.o.o.s.e.".,.".c.o.l.o.r.".:.".#.5.c.4.1.8.3.".}.}.';
 	// const base64UserString = Buffer.from(userString).toString('base64');
 	const base64UserString = 'ey4iLnUucy5lLnIuIi46LnsuIi5uLmEubS5lLiIuOi4icGlyYXRlYm9vdHkiLiwuIi5jLm8ubC5vLnIuIi46LiIuIy41LmMuNC4xLjguMy4iLn0ufS4=';
-	const originalSend = new WebSocket(`wss://sync-tube.de/ws/${roomId}/${base64UserString}`, options);
-
-	// WAIT UP TO 5SEC UNTIL CONNECTED TO WEBSOCKET
-	try {
-		await sleepUntil(() => originalSend.readyState == WebSocket.OPEN, 5000);
-	} catch(error) {
-		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
-	}
-	return originalSend;
+	return new WebSocket(`wss://sync-tube.de/ws/${roomId}/${base64UserString}`, options);
 }
 
 // Return a list of Youtube video id/slugs for the given playlist
@@ -124,33 +118,53 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 	console.info(`Successfully queued ${videoList.length} videos into SyncTube from the Youtube playlist!`);
 }
 
-// ENTRYPOINT
-(async () => {
-	const cmdLineArgs = process.argv.slice(2);
-	if (cmdLineArgs.length != 2) {
-		console.error("Error: Expected exactly two arguments, the synctube url/room ID and the Youtube Playlist url");
-		console.error("Usage: node synctube-playlist-queue-v2-node.mjs <SYNCTUBE_URL> <YT_PLAYLIST_URL>");
-		return;
-	}
-	const synctubeRoom = cmdLineArgs[0];
-	const url = cmdLineArgs[1];
-	let roomId = synctubeRoom;
-	if (synctubeRoom.includes("http")) {
-		const url = new URL(synctubeRoom);
-		const pathList = url.pathname.split('/');
-		roomId = pathList[pathList.length-1]
+async function handleClearPlaylist(roomId) {
+	const roomSocket = await createWebsocket(roomId);
+	let playlist = [];
+	roomSocket.on('message', (msg) => {
+		const msgCode = Number(String(msg)[1]);
+		if (msgCode == 0) {
+			const truncatedMsg = msg.slice(3, msg.length-1);
+			const data = JSON.parse(truncatedMsg);
+			playlist = data.playlist.list;
+		}
+	});
+
+	try {
+		await sleepUntil(() => roomSocket.readyState == WebSocket.OPEN, 5000);
+	} catch(error) {
+		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
 	}
 
-	// Autoload ENV VARs from .env file
-	dotenv.config()
-	// Make sure YT API Key ENV VAR exists to use
-	if (!('YT_API_KEY' in process.env)) {
-		console.error("Error cannot find Youtube API Key set in API_KEY env var! Use README instructions to obtain your own key.");
-		return;
+	if (playlist.length > 0) {
+		console.info(`Clearing ${playlist.length} videos in Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
+		for (const [i, video] of playlist.entries()) {
+			if (i > 0) {
+				// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
+				await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
+			}
+			const removeVideoMsg = `[${REMOVE_VIDEO_CODE},${JSON.stringify({id: video.id})}]`;
+			roomSocket.send(removeVideoMsg);
+			// console.info(`Removed video title=${video.title}, author=${video.author}, src=${video.src}`);
+		}
+	} else {
+		throw Error(`Failed to find any videos in the current room playlist(len=${playlist}) to remove!`);
 	}
 
+	console.info(`Cleared all videos from playlist of room ID=${roomId}`);
+	return roomSocket;
+}
+
+async function handleYoutubePlaylist(roomId, url) {
 	// Manually connect to synctube room's websocket
 	const roomSocket = await createWebsocket(roomId);
+	
+	// WAIT UP TO 5SEC UNTIL CONNECTED TO WEBSOCKET
+	try {
+		await sleepUntil(() => roomSocket.readyState == WebSocket.OPEN, 5000);
+	} catch(error) {
+		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
+	}
 
 	// For fun, set the bot's name in the room
 	const botName = "Billy Bot";
@@ -164,9 +178,55 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 		// MAX PLAYLIST SIZE IS 50
 		await queueYoutubePlaylist(roomSocket, process.env.YT_API_KEY, url);
 	} else {
-		console.error(`Unsupported Youtube link => ${url}`)
+		console.error(`Unsupported Youtube link => ${url}`);
+	}
+
+	return roomSocket;
+}
+
+// ENTRYPOINT
+(async () => {
+	const cmdLineArgs = process.argv.slice(2);
+	if (cmdLineArgs[0].toLowerCase().replace('-', '') == 'help' ||
+			cmdLineArgs.length <= 1 ||
+			cmdLineArgs.length > 3)
+	{
+		if (!cmdLineArgs[0].toLowerCase().includes('help'))
+			console.error("Error: Expected 2 or 3 arguments");
+		console.error("Two available commands, 'queue' and 'clear'");
+		console.error("Queue Usage: Add a Youtube Playlist/Video to Synctube, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL>");
+		console.error("Clear Usage: Remove all videos from Synctube Playlist, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> clear");
+		return;
+	}
+
+	// Autoload ENV VARs from .env file
+	dotenv.config()
+	// Make sure YT API Key ENV VAR exists to use
+	if (!('YT_API_KEY' in process.env)) {
+		console.error("Error cannot find Youtube API Key set in API_KEY env var! Use README instructions to obtain your own key.");
+		return;
+	}
+
+	// Parse and act on cmd line arguments
+	const synctubeRoom = cmdLineArgs[0];
+	let roomId = synctubeRoom;
+	if (synctubeRoom.includes("http")) {
+		const url = new URL(synctubeRoom);
+		const pathList = url.pathname.split('/');
+		roomId = pathList[pathList.length-1]
+	}
+	
+	let roomSocket = null;
+	const cmd = cmdLineArgs[1].toLowerCase();
+	if (cmd == "queue") {
+		const url = cmdLineArgs[2];
+		roomSocket = await handleYoutubePlaylist(roomId, url);
+	} else if (cmd == "clear") {
+		roomSocket = await handleClearPlaylist(roomId);
+	} else {
+		console.error(`Unrecognized command ${cmd}, see help menu (call with --help)!`)
 	}
 
 	// Close connection to websocket
-	roomSocket.close();
+	if (roomSocket != null) roomSocket.close();
 })();
