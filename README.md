@@ -1,6 +1,8 @@
 # Add a Youtube Playlist to queue in a [sync-tube](https://sync-tube.de/) room
 
 ## Prerequisites
+- [NodeJS](https://nodejs.dev/) - `choco install nodejs`
+- [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/)/NPM - `choco install yarn`
 - Google account
 - Youtube API Key
   1. Log in to [Google Developers Console](https://console.cloud.google.com/).
@@ -13,21 +15,16 @@
 
 
 ## Usage Instructions
-1. Navigate to your [sync-tube](https://sync-tube.de/) room or create a new one
-2. Open the browser's dev tools (F12) and go to the Console
-3. Copy-paste the contents of `queue-youtube-playlist.js` into your browser's Console
-    - Some browsers like *Firefox* require you to type something akin to "allow pasting" before you will be allowed to paste into the Console for security reasons. You are encouraged to read the code before pasting, it's only ~120 lines including comments!
-4. To queue a Youtube playlist's videos to the SyncTube room:
-```js
-queueYoutubePlaylist(YOUTUBE_API_KEY, YOUTUBE_PLAYLIST_URL);
-
-// Example usage
-queueYoutubePlaylist("fakeapikey123", "https://www.youtube.com/playlist?list=PLR4XuJ-iybKtlsbeZ89tx1kcItBTdSeUN");
-queueYoutubePlaylist("fakeapikey123", "https://www.youtube.com/watch?v=-LX2kpeyp80&list=PLR4XuJ-iybKtlsbeZ89tx1kcItBTdSeUN&index=7");
+1. Clone the repository or .mjs script file
+```bash
+git clone https://github.com/NoahFrank/synctube-playlist-queue.git
+````
+2. Install dependencies with `yarn` or `npm install`
+3. Create an `.env` file from the `.env.sample` file, replacing <YOUR_YOUTUBE_API_KEY> with the API Key acquired in the Prerequisites
+4. Run the script with `node` like so:
+```bash
+node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> <YOUTUBE_PLAYLIST_URL>
 ```
 
 ## Limitations
-- A SyncTube room can have a maximum of 100 videos in queue, so a Youtube playlist with over 100 videos is not supported.
-
-## Future Work
-- Add chrome extension to automatically inject the `queue-youtube-playlist.js` JS script into the sync-tube room page when open
+- When queueing videos from the websocket maximum is **50** videos.
