@@ -11,11 +11,8 @@ const parseCookies = str =>
 	str.split(';')
 	.map(v => v.split('='))
 	.reduce((acc, v) => {
-		let key = v[0].trim();
-		let value = "";
-		if (v[1] !== undefined && v[1].length > 0) {
-			value = v[1].trim();
-		}
+		const key = v[0].trim();
+		const value = v[1] !== undefined && v[1].length > 0 ? v[1].trim() : "";
 		acc[decodeURIComponent(key)] = decodeURIComponent(value);
 		return acc;
 	}, {});
@@ -122,7 +119,7 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 		// Manually send a websocket message to add video to synctube's queue
 		const addVideoPayload = { src: `https://www.youtube.com/watch?v=${videoSlug}` };
 		const queueVideoMsg = `[${VIDEO_QUEUE_CODE},${JSON.stringify(addVideoPayload)},${Date.now()}]`;
-        roomSocket.send(queueVideoMsg);
+		roomSocket.send(queueVideoMsg);
 	}
 	console.info(`Successfully queued ${videoList.length} videos into SyncTube from the Youtube playlist!`);
 }
@@ -170,5 +167,6 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 		console.error(`Unsupported Youtube link => ${url}`)
 	}
 
+	// Close connection to websocket
 	roomSocket.close();
 })();
