@@ -156,19 +156,19 @@ async function handleClearPlaylist(roomId) {
 		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
 	}
 
-	if (playlist.length > 0) {
-		console.info(`Clearing ${playlist.length} videos in Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
-		for (const [i, video] of playlist.entries()) {
-			if (i > 0) {
-				// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
-				await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
-			}
-			const removeVideoMsg = `[${REMOVE_VIDEO_CODE},${JSON.stringify({id: video.id})}]`;
-			roomSocket.send(removeVideoMsg);
-			// console.info(`Removed video title=${video.title}, author=${video.author}, src=${video.src}`);
-		}
-	} else {
+	if (playlist.length <= 0) {
 		throw Error(`Failed to find any videos in the current room playlist(len=${playlist}) to remove!`);
+	}
+	
+	console.info(`Clearing ${playlist.length} videos in Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
+	for (const [i, video] of playlist.entries()) {
+		if (i > 0) {
+			// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
+			await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
+		}
+		const removeVideoMsg = `[${REMOVE_VIDEO_CODE},${JSON.stringify({id: video.id})}]`;
+		roomSocket.send(removeVideoMsg);
+		// console.info(`Removed video title=${video.title}, author=${video.author}, src=${video.src}`);
 	}
 
 	console.info(`Cleared all videos from playlist of room ID=${roomId}`);
@@ -194,42 +194,42 @@ async function handleMoveToTopOfPlaylist(roomId) {
 		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
 	}
 
-	if (playlist.length > 0) {
-		console.log("Select one video to move to top of playlist by number:")
-		for (const [i, video] of playlist.entries()) {
-			console.log(`${i+1}: ${video.title} - ${video.author}`);
-		}
-
-		const rl = readline.createInterface({
-			input: process.stdin,
-			output: process.stdout,
-		});
-
-		rl.question(`Video Number: `, async index => {
-			if (index <= 0 || index > playlist.length) {
-				throw Error(`${index} is not a valid video number!`);
-			}
-			const selectedVideo = playlist[index-1];
-			if (selectedVideo.id == playlist[0].id) {
-				throw Error(`Selected video '${selectedVideo.title}' is already top of the playlist!`);
-			}
-			console.log(`Moving '${selectedVideo.title}' to top of Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
-			for (let i = 0; i < index-1; i++) {
-				if (i > 0) {
-					// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
-					await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
-				}
-				const orderVideoMsg = `[${MOVE_VIDEO_CODE},${JSON.stringify({id: selectedVideo.id, dir: 1})}]`;
-				roomSocket.send(orderVideoMsg);
-			}
-			console.log(`Successfully moved '${selectedVideo.title}' to top of Synctube playlist!`);
-			
-			rl.close();
-			roomSocket.close();
-		});
-	} else {
+	if (playlist.length <= 0) {
 		throw Error(`Failed to find any videos in the current room playlist(len=${playlist}) to choose from!`);
 	}
+
+	console.log("Select one video to move to top of playlist by number:")
+	for (const [i, video] of playlist.entries()) {
+		console.log(`${i+1}: ${video.title} - ${video.author}`);
+	}
+
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+	});
+
+	rl.question(`Video Number: `, async index => {
+		if (index <= 0 || index > playlist.length) {
+			throw Error(`${index} is not a valid video number!`);
+		}
+		const selectedVideo = playlist[index-1];
+		if (selectedVideo.id == playlist[0].id) {
+			throw Error(`Selected video '${selectedVideo.title}' is already top of the playlist!`);
+		}
+		console.log(`Moving '${selectedVideo.title}' to top of Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
+		for (let i = 0; i < index-1; i++) {
+			if (i > 0) {
+				// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
+				await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
+			}
+			const orderVideoMsg = `[${MOVE_VIDEO_CODE},${JSON.stringify({id: selectedVideo.id, dir: 1})}]`;
+			roomSocket.send(orderVideoMsg);
+		}
+		console.log(`Successfully moved '${selectedVideo.title}' to top of Synctube playlist!`);
+		
+		rl.close();
+		roomSocket.close();
+	});
 }
 
 async function handleYoutubePlaylist(roomId, url, isRandomQueueEnabled) {
