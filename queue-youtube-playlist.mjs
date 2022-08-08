@@ -1,12 +1,14 @@
 import WebSocket from "ws";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import readline from 'readline';
 
 // CONSTANTS
 const QUEUE_LOOP_SLEEP_PERIOD = 200; // In milliseconds
 // Msg type codes for Synctube Websockets
 const VIDEO_QUEUE_CODE = 30;
 const REMOVE_VIDEO_CODE = 31;
+const MOVE_VIDEO_CODE = 32;
 const SET_NAME_CODE = 12;
 
 const parseCookies = str =>
@@ -34,6 +36,19 @@ async function sleepUntil(f, timeoutMs) {
             }
         }, 20);
     });
+}
+
+/**
+ * Shuffles array in place. ES6 version with Fisher-Yates
+ * Source: https://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
+ * @param {Array} a items An array containing the items.
+ */
+ function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
 }
 
 // Manually create a websocket connection to the given synctube room ID.  In order to authenticate, we first need an 's' cookie which can be obtained
@@ -87,7 +102,7 @@ async function getVideosFromYoutubePlaylist(apiKey, playlistId) {
 	return playlistItems;
 }
 
-async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
+async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl, isRandomQueueEnabled) {
 	const parsedUrl = new URL(playlistUrl);
 	const urlParams = parsedUrl.searchParams;
 	// Youtube playlist id contained in "list" query param
@@ -98,10 +113,15 @@ async function queueYoutubePlaylist(roomSocket, apiKey, playlistUrl) {
 	const playlistId = urlParams.get('list');
 
 	// Execute Youtube API request to determine contents of the given playlist
-	const videoList = await getVideosFromYoutubePlaylist(apiKey, playlistId);
+	let videoList = await getVideosFromYoutubePlaylist(apiKey, playlistId);
 	
 	// Limit playlist queueing to 50 videos, if over limit then truncate list
 	if (videoList.length > 50) videoList = videoList.slice(0, 50);
+
+	// If optional randomizing of video order is enabled
+	if (isRandomQueueEnabled) {
+		videoList = shuffle(videoList);
+	}
 
 	console.info(`Queueing ${videoList.length} videos found from YT API, should take about ${videoList.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
 	for (const [i, videoSlug] of videoList.entries()) {
@@ -155,7 +175,64 @@ async function handleClearPlaylist(roomId) {
 	return roomSocket;
 }
 
-async function handleYoutubePlaylist(roomId, url) {
+// LIST ALL SONGS IN PLAYLIST AND LET USER CHOOSE ONE TO BE MOVED TO TOP!
+async function handleMoveToTopOfPlaylist(roomId) {
+	const roomSocket = await createWebsocket(roomId);
+	let playlist = [];
+	roomSocket.on('message', (msg) => {
+		const msgCode = Number(String(msg)[1]);
+		if (msgCode == 0) {
+			const truncatedMsg = msg.slice(3, msg.length-1);
+			const data = JSON.parse(truncatedMsg);
+			playlist = data.playlist.list;
+		}
+	});
+
+	try {
+		await sleepUntil(() => roomSocket.readyState == WebSocket.OPEN, 5000);
+	} catch(error) {
+		throw Error(`Failed to connect to websocket for synctube room id=${roomId} because err=${error}`);
+	}
+
+	if (playlist.length > 0) {
+		console.log("Select one video to move to top of playlist by number:")
+		for (const [i, video] of playlist.entries()) {
+			console.log(`${i+1}: ${video.title} - ${video.author}`);
+		}
+
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout,
+		});
+
+		rl.question(`Video Number: `, async index => {
+			if (index <= 0 || index > playlist.length) {
+				throw Error(`${index} is not a valid video number!`);
+			}
+			const selectedVideo = playlist[index-1];
+			if (selectedVideo.id == playlist[0].id) {
+				throw Error(`Selected video '${selectedVideo.title}' is already top of the playlist!`);
+			}
+			console.log(`Moving '${selectedVideo.title}' to top of Synctube playlist, should take about ${playlist.length*QUEUE_LOOP_SLEEP_PERIOD/1000}s...`);
+			for (let i = 0; i < index-1; i++) {
+				if (i > 0) {
+					// After first loop, sleep for QUEUE_LOOP_SLEEP_PERIOD before sending each msg to prevent spamming
+					await new Promise(r => setTimeout(r, QUEUE_LOOP_SLEEP_PERIOD));
+				}
+				const orderVideoMsg = `[${MOVE_VIDEO_CODE},${JSON.stringify({id: selectedVideo.id, dir: 1})}]`;
+				roomSocket.send(orderVideoMsg);
+			}
+			console.log(`Successfully moved '${selectedVideo.title}' to top of Synctube playlist!`);
+			
+			rl.close();
+			roomSocket.close();
+		});
+	} else {
+		throw Error(`Failed to find any videos in the current room playlist(len=${playlist}) to choose from!`);
+	}
+}
+
+async function handleYoutubePlaylist(roomId, url, isRandomQueueEnabled) {
 	// Manually connect to synctube room's websocket
 	const roomSocket = await createWebsocket(roomId);
 	
@@ -176,7 +253,7 @@ async function handleYoutubePlaylist(roomId, url) {
 		console.info(`Queued video: ${url}`)
 	} else if (url.includes('youtube.com/playlist')) {
 		// MAX PLAYLIST SIZE IS 50
-		await queueYoutubePlaylist(roomSocket, process.env.YT_API_KEY, url);
+		await queueYoutubePlaylist(roomSocket, process.env.YT_API_KEY, url, isRandomQueueEnabled);
 	} else {
 		console.error(`Unsupported Youtube link => ${url}`);
 	}
@@ -184,18 +261,22 @@ async function handleYoutubePlaylist(roomId, url) {
 	return roomSocket;
 }
 
+// TODO: SAVE CURRENT PLAYING SONG TO PLAYLIST
+// TODO: LOOP CURRENT SONG FOREVER UNTIL PROGRAM STOPPED
+
 // ENTRYPOINT
 (async () => {
 	const cmdLineArgs = process.argv.slice(2);
 	if (cmdLineArgs[0].toLowerCase().replace('-', '') == 'help' ||
 			cmdLineArgs.length <= 1 ||
-			cmdLineArgs.length > 3)
+			cmdLineArgs.length > 4)
 	{
 		if (!cmdLineArgs[0].toLowerCase().includes('help'))
-			console.error("Error: Expected 2 or 3 arguments");
-		console.error("Two available commands, 'queue' and 'clear'");
-		console.error("Queue Usage: Add a Youtube Playlist/Video to Synctube, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL>");
+			console.error("Error: Expected 2-4 arguments");
+		console.error("Three available commands, 'queue', 'clear', and 'top'");
+		console.error("Queue Usage: Add a Youtube Playlist/Video to Synctube, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL> [ --random ]");
 		console.error("Clear Usage: Remove all videos from Synctube Playlist, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> clear");
+		console.error("Top Usage: Move video to top of Synctube Playlist, node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> top");
 		return;
 	}
 
@@ -220,9 +301,12 @@ async function handleYoutubePlaylist(roomId, url) {
 	const cmd = cmdLineArgs[1].toLowerCase();
 	if (cmd == "queue") {
 		const url = cmdLineArgs[2];
-		roomSocket = await handleYoutubePlaylist(roomId, url);
+		const isRandomQueueEnabled = cmdLineArgs.length >= 4 && cmdLineArgs[3].toLowerCase().includes("random");
+		roomSocket = await handleYoutubePlaylist(roomId, url, isRandomQueueEnabled);
 	} else if (cmd == "clear") {
 		roomSocket = await handleClearPlaylist(roomId);
+	} else if (cmd == "top") {
+		await handleMoveToTopOfPlaylist(roomId);
 	} else {
 		console.error(`Unrecognized command ${cmd}, see help menu (call with --help)!`)
 	}
