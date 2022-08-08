@@ -15,9 +15,10 @@
 
 
 ## Usage Instructions
-1. Clone the repository or .mjs script file
+1. Clone the repository and navigate to it!
 ```bash
 git clone https://github.com/NoahFrank/synctube-playlist-queue.git
+cd synctube-playlist-queue
 ````
 2. Install dependencies with `yarn` or `npm install`
 3. Create an `.env` file from the `.env.sample` file, replacing <YOUR_YOUTUBE_API_KEY> with the API Key acquired in the Prerequisites
@@ -27,7 +28,7 @@ node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL>
 ```
 
 ## Queue Youtube Playlist in Synctube
-Add the entire Youtube playlist into the Synctube playlist, include `--random` if you want to randomize the queueing order.  Supports adding a single Youtube video to Synctube playlist.
+Add the entire Youtube playlist into Synctube playlist, include `--random` if you want to randomize the queueing order.  Supports adding a single Youtube video to Synctube playlist.
 ```bash
 node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL> [ --random ]
 ```
