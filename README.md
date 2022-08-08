@@ -26,10 +26,22 @@ git clone https://github.com/NoahFrank/synctube-playlist-queue.git
 node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL>
 ```
 
+## Queue Youtube Playlist in Synctube
+Add the entire Youtube playlist into the Synctube playlist, include `--random` if you want to randomize the queueing order.  Supports adding a single Youtube video to Synctube playlist.
+```bash
+node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> queue <YOUTUBE_URL> [ --random ]
+```
+
 ## Clear Synctube Playlist
 *Ensure the Viewer group has 'Remove' permissions in the Synctube room*
 ```bash
 node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> clear
+```
+
+## Move To Top of Synctube Playlist
+*Ensure the Viewer group has 'Move' permissions in the Synctube room*
+```bash
+node queue-youtube-playlist.mjs <SYNCTUBE_ROOM_OR_URL> top
 ```
 
 ## Limitations
